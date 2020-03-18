@@ -9,22 +9,73 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+```{r, include = FALSE}
+library(tidyverse)
+library(Hmisc)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(janitor)
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+library(DataExplorer)
 ```
 
-## Including Plots
 
-You can also embed plots, for example:
+## Introduction of *http://archive.ics.uci.edu/ml/machine-learning-databases/00502/* dataset.
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+Transactions occurring for a UK-based and registered, non-store online retail between 01/12/2009 and 09/12/2010.
+
+Changing format for a more lightweight solution.
+
+```{r}
+#data <- readxl::read_xlsx("../online_retail_II.xlsx")
+
+#saveRDS(data, file = "online_retail_II.rds")
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+Reading data.
+
+```{r, include = FALSE}
+data <- readRDS("online_retail_II.rds")
+```
+
+```{r}
+colnames(data)
+```
+
+InvoiceNo: Invoice number. Nominal. A 6-digit integral number uniquely assigned to each transaction. If this code starts with the letter 'c', it indicates a cancellation.
+
+StockCode: Product (item) code. Nominal. A 5-digit integral number uniquely assigned to each distinct product.
+
+Description: Product (item) name. Nominal.
+
+Quantity: The quantities of each product (item) per transaction. Numeric.
+
+InvoiceDate: Invoice date and time. Numeric. The day and time when a transaction was generated.
+
+UnitPrice: Unit price. Numeric. Product price per unit in sterling (Â£).
+
+CustomerID: Customer number. Nominal. A 5-digit integral number uniquely assigned to each customer.
+
+Country: Country name. Nominal. The name of the country where a customer resides.
+
+```{r}
+# some basic cleaning and factoring these columns for easier visualization of ratios
+data <- data %>% clean_names()
+data[, 'description'] <- as.factor(data[, 'description'])
+data[, 'country'] <- as.factor(data[, 'country'])
+data[, 'customer_id'] <- as.factor(data[, 'customer_id'])
+data[, 'stock_code'] <- as.factor(data[, 'stock_code'])
+
+
+
+summary(data)
+tail(data)
+str(data)
+
+```
+
+## Comparing daily turnover of online retailer platform in 2009 and 2010 December.
+
+
