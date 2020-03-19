@@ -20,6 +20,8 @@ library(plotly)
 library(TSstudio)
 library(data.table)
 library(lubridate)
+library(highcharter)
+library(purrr)
 
 
 library(DataExplorer)
@@ -69,9 +71,10 @@ Country: Country name. Nominal. The name of the country where a customer resides
 # some basic cleaning and factoring these columns for easier visualization of ratios
 data <- data %>% clean_names()
 data$description <- as.factor(data$description)
+data$description <- fct_explicit_na(data$description)
 data$country <- as.factor(data$country)
-data$customer_id <- as.factor(data$customer_id)
-data$stock_code <- as.factor(data$stock_code)
+data$customer_id <- fct_explicit_na(as.factor(data$customer_id))
+data$stock_code <- fct_explicit_na(as.factor(data$stock_code))
 
 
 summary(data)
@@ -114,35 +117,78 @@ decembercomparison2010 <- decembercomparison2010 %>% mutate( date = as.Date(ymd(
 
 
 ```{r}
-ts_plot(decembercomparison2009)
+ts_plot(decembercomparison2009, Ytitle = "Total Sales", line.mode = "lines+markers")
 ```
 
 ```{r}
-ts_plot(decembercomparison2010)
+ts_plot(decembercomparison2010, Ytitle = "Total Sales", line.mode = "lines+markers")
 ```
 
 ## Visualizing distribution of daily purchases
 
-```{r}
+Here we see the amount of different items per invoice per day for December 2009. 
 
+```{r}
+fntltp <- JS("function(){
+  return this.point.x + ' ' +  this.series.yAxis.categories[this.point.y] + ':<br>' +
+  Highcharts.numberFormat(this.point.value, 2);
+}")
+
+
+data %>% filter(month(invoice_date) == 12 & (year(invoice_date) %in% c(2009))) %>% mutate(day = lubridate::day(invoice_date), year = year(invoice_date)) %>% group_by(invoice, as.factor(day)) %>% mutate(sales_per_invoice = sum(total_price))%>% ungroup() %>% group_by(day) %>% count(invoice) %>% arrange(day, -n) %>% ungroup() %>% hchart("heatmap", hcaes(x = day, y = invoice, value = n)) %>% 
+  hc_yAxis(reversed = TRUE, offset = -20, tickLength = 0,
+           gridLineWidth = 0, minorGridLineWidth = 0,
+           labels = list(style = list(fontSize = "8px"))) %>%  
+  hc_tooltip(formatter = fntltp) %>% 
+  hc_size(height = 1000)
 
 ```
 
-
-
-
-
+## Here we see the amount of different items per invoice per day for December 2010.
 
 ```{r}
-theme_set(theme_bw())
+data %>% filter(month(invoice_date) == 12 & (year(invoice_date) %in% c(2010))) %>% mutate(day = lubridate::day(invoice_date), year = year(invoice_date)) %>% group_by(invoice, as.factor(day)) %>% mutate(sales_per_invoice = sum(total_price))%>% ungroup() %>% group_by(day) %>% count(invoice) %>% arrange(day, -n) %>% ungroup() %>% hchart("heatmap", hcaes(x = day, y = invoice, value = n)) %>% 
+  hc_yAxis(reversed = TRUE, offset = -20, tickLength = 0,
+           gridLineWidth = 0, minorGridLineWidth = 0,
+           labels = list(style = list(fontSize = "8px"))) %>%  
+  hc_tooltip(formatter = fntltp) %>% 
+  hc_size(height = 1000)
 
-# Draw plot
-data %>%
-  ggplot(aes(class, cty)) %>% 
-  geom_boxplot(varwidth=T, fill="plum") + 
-    labs(title="Box plot", 
-         subtitle="City Mileage grouped by Class of vehicle",
-         caption="Source: mpg",
-         x="Class of Vehicle",
-         y="City Mileage")
+```
+
+## Top 20 favorite profit maker friends for both December's (2009 and 2010).
+
+```{r}
+data %>% filter(month(invoice_date) == 12 & (year(invoice_date) %in% c(2009, 2010))) %>% mutate(day = lubridate::day(invoice_date), year = year(invoice_date)) %>% group_by(customer_id, as.factor(day), year) %>% summarise(sales_per_invoice = sum(total_price)) %>% ungroup() %>% arrange(-sales_per_invoice) %>% head(20)
+```
+
+## Top 10 selling items in the two years' Decembers.
+
+```{r}
+data %>% filter(month(invoice_date) == 12 & (year(invoice_date) %in% c(2009, 2010))) %>% mutate(day = lubridate::day(invoice_date), year = year(invoice_date)) %>% group_by(invoice, as.factor(day)) %>% mutate(sales_per_invoice = sum(total_price)) %>% ungroup() %>% count(description) %>% arrange(-n) %>% head(10) %>%
+  hchart(type = "bar", hcaes(x = description, y = n))
+
+```
+
+## Top 20 selling items in the whole dataset.
+
+```{r}
+head(summary(data$description), 20)
+```
+
+## Customer concentration
+
+```{r}
+str(data)
+data %>% 
+```
+
+
+## Amount of different item orders by country
+
+```{r}
+countryfreq <- summary(data$country)
+countries <- stack(countryfreq)
+
+countries %>% rename(country = ind, n = values) %>% arrange(-n)
 ```
