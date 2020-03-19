@@ -93,6 +93,10 @@ data <- data %>% mutate(total_price = quantity * price)
 
 ## Comparing daily turnover of online retailer platform in 2009 and 2010 December.
 
+What we can see here is that:
+- in December 2009, there were sales up until the 23rd of December
+- in December 2010 sales were made only until the 9th of December. It suggests there might be missing data from the last days of 2010
+- We can also deduce that this online retail stops working from Christmas until January.
 
 ```{r, echo = FALSE}
 # filters for only december
@@ -116,7 +120,6 @@ ts_plot(decembercomparison2009)
 ```{r}
 ts_plot(decembercomparison2010)
 ```
-
 
 ## Visualizing distribution of daily purchases
 
