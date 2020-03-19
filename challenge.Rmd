@@ -22,7 +22,17 @@ library(data.table)
 library(lubridate)
 library(highcharter)
 library(purrr)
+library(grid)
 
+library(cluster)
+library(readr)
+library(Rtsne)
+library(TTR)
+library(xts)
+
+library(timelineR)
+
+require(smooth)
 
 library(DataExplorer)
 ```
@@ -178,17 +188,119 @@ head(summary(data$description), 20)
 
 ## Customer concentration
 
+Most similar clients:
+
 ```{r}
-str(data)
-data %>% 
+#' Compute Gower distance in december 2010 data because it's time consuming
+concentrationdf <- data %>% group_by(customer_id, country) %>% filter(month(invoice_date) == 12 & (year(invoice_date) %in% c(2010))) %>% select(-invoice_date, -price, -quantity) %>% summarise(sum_total_price = sum(total_price))
+#concentrationdf$invoice <- as.factor(concentrationdf$invoice) 
+gower_dist <- daisy(concentrationdf, metric = "gower")
+
+gower_mat <- as.matrix(gower_dist)
+#' Print most similar clients
+concentrationdf[which(gower_mat == min(gower_mat[gower_mat != min(gower_mat)]), arr.ind = TRUE)[1, ], ]
 ```
 
+Most dissimilar clients:
+
+```{r}
+#' Print most dissimilar clients
+concentrationdf[which(gower_mat == max(gower_mat[gower_mat != max(gower_mat)]), arr.ind = TRUE)[1, ], ]
+
+sil_width <- c(NA)
+for(i in 2:15){
+  pam_fit <- pam(gower_dist, diss = TRUE, k = i)
+  sil_width[i] <- pam_fit$silinfo$avg.width
+}
+
+plot(1:15, sil_width,
+     xlab = "Number of clusters",
+     ylab = "Silhouette Width") +
+lines(1:15, sil_width)
+```
+
+Here we can see the results of the clusterisation:
+
+```{r}
+k <- 10
+
+pam_fit <- pam(gower_dist, diss = TRUE, k)
+
+
+tsne_obj <- Rtsne(gower_dist, is_distance = TRUE)
+tsne_data <- tsne_obj$Y %>%
+  data.frame() %>%
+  setNames(c("X", "Y")) %>%
+  mutate(cluster = factor(pam_fit$clustering))
+ggplot(aes(x = X, y = Y), data = tsne_data) +
+  geom_point(aes(color = cluster))
+
+```
+
+Used Gower distance to find similar customers and found a pattern in one group. The rest of the 9. It needs more tuning since variables were left behind due to hard drive size limitations.
 
 ## Amount of different item orders by country
+
+We have entries from 40 different countries.
 
 ```{r}
 countryfreq <- summary(data$country)
 countries <- stack(countryfreq)
 
 countries %>% rename(country = ind, n = values) %>% arrange(-n)
+```
+
+## Shopping dynamics of a particular day: 14th of November 2010
+
+```{r}
+dynamics <- data %>% filter(day(invoice_date) == 14 & month(invoice_date) == 11 & (year(invoice_date) %in% c(2010))) %>% select(-quantity)
+
+#lags
+dyna_tl <- mutate( dynamics, total_price = lag( total_price ) )
+dyna_all <- bind_rows( old = dynamics, new = dyna_tl, .id="source" ) %>%
+    arrange( invoice_date, source) 
+
+ggplot(dynamics, aes(invoice_date, total_price)) +
+  geom_step() +
+  geom_ribbon( data = dyna_all, aes( ymin = 0, ymax = total_price ),
+             fill="tomato", alpha=0.5 )
+
+```
+
+## Customer loyalty in August 2010
+
+This can be reproduced in a bigger scale by increasing the amount of minimum interactions of a customer with the store.
+
+```{r}
+
+
+loyaltysubset <- data %>% filter(month(invoice_date) == 8 & (year(invoice_date) %in% c(2010))) %>% select(-stock_code, -description, -invoice, -quantity, -price)
+
+#remove unimportant clients
+tt <- table(loyaltysubset$customer_id)
+rare_levels <- names(tt)[tt<200]
+loyaltysubset <- subset(loyaltysubset,!customer_id %in% rare_levels)
+
+
+summary(loyaltysubset)
+plot_timeline <- plot_timeline(loyaltysubset, save_path = "loyalty.png")
+grid.draw(plot_timeline, recording=TRUE)
+```
+
+
+![Timeline of loyalty subset](loyalty.png)
+
+## Predicting daily sales in January 2010 x day ahead forecasts.
+
+```{r}
+jan2010 <- data %>% filter(month(invoice_date) == 1 & year(invoice_date) == 2010) %>% mutate(day = lubridate::day(invoice_date), year = year(invoice_date)) %>% group_by(day, year) %>% summarise(daily_sales=sum(total_price)) %>% ungroup()
+
+jan2010 <- jan2010 %>% mutate( date = as.Date(ymd(paste0(year, "-01-", day)))) %>% select(daily_sales, date)
+```
+
+Plot of SMA
+
+```{r}
+smooth::sma(jan2010$daily_sales, h = 5, interval =TRUE, silent= FALSE)
+
 ```
