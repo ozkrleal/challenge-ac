@@ -16,6 +16,11 @@ library(ggplot2)
 library(dplyr)
 library(tidyr)
 library(janitor)
+library(plotly)
+library(TSstudio)
+library(data.table)
+library(lubridate)
+
 
 library(DataExplorer)
 ```
@@ -63,19 +68,78 @@ Country: Country name. Nominal. The name of the country where a customer resides
 ```{r}
 # some basic cleaning and factoring these columns for easier visualization of ratios
 data <- data %>% clean_names()
-data[, 'description'] <- as.factor(data[, 'description'])
-data[, 'country'] <- as.factor(data[, 'country'])
-data[, 'customer_id'] <- as.factor(data[, 'customer_id'])
-data[, 'stock_code'] <- as.factor(data[, 'stock_code'])
-
+data$description <- as.factor(data$description)
+data$country <- as.factor(data$country)
+data$customer_id <- as.factor(data$customer_id)
+data$stock_code <- as.factor(data$stock_code)
 
 
 summary(data)
 tail(data)
 str(data)
 
+#data explorer report
+#DataExplorer::create_report(data)
+
+```
+
+```{r}
+#here we notice that quantity can be negative. this indicates it should be a good idea to create a total price value that multiplies qty * price
+data %>% filter(startsWith(invoice,"C")) %>% filter(stock_code == "22087")
+
+
+data <- data %>% mutate(total_price = quantity * price)
 ```
 
 ## Comparing daily turnover of online retailer platform in 2009 and 2010 December.
 
 
+```{r, echo = FALSE}
+# filters for only december
+decembercomparison2009 <- data %>% filter(month(invoice_date) == 12 & (year(invoice_date) %in% c(2009))) %>% mutate(day = lubridate::day(invoice_date), year = year(invoice_date)) %>% group_by(day, year) %>% summarise(daily_sales=sum(total_price)) %>% ungroup()
+
+decembercomparison2009 <- add_row(decembercomparison2009, day = 24:31, year = 2009, daily_sales = 0)
+
+decembercomparison2010 <- data %>% filter(month(invoice_date) == 12 & (year(invoice_date) %in% c(2010))) %>% mutate(day = lubridate::day(invoice_date), year = year(invoice_date)) %>% group_by(day, year) %>% summarise(daily_sales=sum(total_price)) %>% ungroup()
+
+decembercomparison2010 <- add_row(decembercomparison2010, day = 10:31, year = 2010, daily_sales = 0)
+
+decembercomparison2009 <- decembercomparison2009 %>% mutate( date = as.Date(ymd(paste0(year, "-12-", day)))) %>% select(daily_sales, date)
+decembercomparison2010 <- decembercomparison2010 %>% mutate( date = as.Date(ymd(paste0(year, "-12-", day)))) %>% select(daily_sales, date)
+```
+
+
+```{r}
+ts_plot(decembercomparison2009)
+```
+
+```{r}
+ts_plot(decembercomparison2010)
+```
+
+
+## Visualizing distribution of daily purchases
+
+```{r}
+
+
+```
+
+
+
+
+
+
+```{r}
+theme_set(theme_bw())
+
+# Draw plot
+data %>%
+  ggplot(aes(class, cty)) %>% 
+  geom_boxplot(varwidth=T, fill="plum") + 
+    labs(title="Box plot", 
+         subtitle="City Mileage grouped by Class of vehicle",
+         caption="Source: mpg",
+         x="Class of Vehicle",
+         y="City Mileage")
+```
